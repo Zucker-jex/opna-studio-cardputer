@@ -1,0 +1,16 @@
+dependencies:
+  idf:
+    source:
+      type: idf
+    version: 5.5.6
+  m5gfx:
+    dependencies: []
+    source:
+      path: D:\Work\M5Cardputer\opna-studio-cardputer\components\m5gfx
+      type: local
+    version: 0.2.23
+direct_dependencies:
+- m5stack/m5gfx
+manifest_hash: 04c8ecb7677c6454ca051a5b9ca1710cd16c3c45671ad9d4e8727614dc7de46f
+target: esp32s3
+version: 2.0.0
