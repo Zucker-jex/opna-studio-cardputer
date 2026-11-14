@@ -1,7 +1,7 @@
 # OPNA Studio Cardputer
 
 > **面向 M5Stack Cardputer ADV 的双屏 OPNA FM 工作站**  
-> 版本 **0.4.0** · 2026-11-07
+> 版本 **0.5.0** · 2026-11-14
 
 OPNA Studio Cardputer 是把 **OPNA Studio P2** 的 OPNA 引擎、音序器和像素视觉语言，移植到 Cardputer ADV 的独立项目。
 
@@ -14,22 +14,29 @@ OPNA Studio Cardputer 是把 **OPNA Studio P2** 的 OPNA 引擎、音序器和�
 已确认或已实现：
 
 - Cardputer ADV 双屏：内部 ST7789V2 240×135 + 外部 ILI9341 320×240；
+- 双屏 canvas 使用 8-bit RGB332 双缓冲（256 色，复古但无闪屏，约 109 KB）；
 - 外部屏与 SD 共用 SPI2，SD 挂载正常；
 - ES8311 / I2S 48 kHz 立体声输出，扬声器与耳机均有声音；
 - TCA8418 键盘；
 - OPNA 引擎 55 466 Hz 原生渲染 → 48 kHz 重采样；
 - 16 patterns、SEQ 编辑、MIX、SYS、SD 存档、MIDI 文件导出；
+- **FILES 第六页**：SD 目录浏览、`.M` PMD 播放、`.P2S` 项目加载；
+- **PMD 播放器**（pocket-fmdsp driver）：FM6/SSG3/Rhythm；
+- **Save As**：命名保存并记录最后项目 `/sdcard/OPNA/opna.cfg`；
+- PMD 播放时 SEQ 页显示只读监视器；
 - 内置 16-pattern 曲目 **Fracture Protocol**（F# minor，132 BPM，全通道）。
 
 当前固件构建：
 
 ```text
 ESP-IDF 5.5.6 / esp32s3
-App:    606 976 B (0x94300)
-Merged: 672 512 B (0xA4300)
+App:    691 056 B (0xA8B70)
+Merged: 756 592 B (0xB8B70)
 ```
 
-> 当前功能已在开发样机上验证通过。
+> 原有双屏、音频、键盘、SEQ/MIX/SYS、存档和 MIDI 已在开发样机验证。
+> v0.5 新增 PMD 播放、FILES 页和 Save As，已编译通过并做过 host 侧 PMD 样本测试，
+> 仍需在 Cardputer 上完成最终回归。
 > ADV 的 Stamp-S3 连接座没有引出耳机检测 GPIO，因此本项目**不实现软件自动检测**。
 > 耳机插入时由硬件 Q4 将 AMP_EN 拉低，自动关闭 NS4150B；MCU 始终把 AMP_EN 保持高。
 > SYS 的 `Output` 只是耳机音量预设，不控制这个硬件静音。
@@ -46,7 +53,8 @@ Merged: 672 512 B (0xA4300)
 - `SYN`：8 个 FM patch、两八度钢琴、八度、live、ARP/LATCH；
 - `MIX`：10 轨电平/静音、master、L/R VU；
 - `VIS`：64-bin FFT / 触发示波器 + CPU/UND/FPS；
-- `SYS`：播放、pattern 工具、音频、存档、导出、曲目和电源。
+- `SYS`：播放、pattern 工具、音频、存档、导出、曲目和电源；
+- `FILES`：SD 目录、`.M` 播放、`.P2S` 加载、PMD 状态。
 
 **内部 240×135：演奏 HUD**
 
@@ -55,7 +63,8 @@ Merged: 672 512 B (0xA4300)
 - SYN patch、键位、ARP/LATCH；
 - MIX L/R VU；
 - VIS 的反向视图（外屏 FFT ↔ HUD scope）；
-- SYS/状态提示。
+- SYS/状态提示；
+- FILES：当前目录、文件数、PMD/STUDIO 状态。
 
 ### 音序与 Pattern
 
@@ -94,6 +103,26 @@ F#m – D – Bm – C#
 
 SYS → `Song` 可重新载入。`Demo` 仍保留原始 demo。
 
+### PMD `.M` 播放
+
+- 文件管理器打开 `.M`；
+- 使用 pocket-fmdsp 的 PMD driver；
+- 播放 FM1–FM6、SSG1–SSG3、Rhythm；
+- 原生 55 466 Hz，继续走 48 kHz 重采样；
+- PMD 模式在 SEQ 页显示只读监视器：
+  - 10 行：FM1–FM6 / SSG1–SSG3 / RHY；
+  - 16 列：最近 16 个时间格；
+  - 显示标题、活动音高；
+  - 不能编辑；
+- PMD 的 SEQ 监视器只记录音高变化事件，不再把持续音重复铺满 16 列；
+- PMD 暂停时 SEQ 历史立即冻结，不再继续滚动到空白；
+- VIS 页在 PMD 模式下显示 PMD 输出波形；
+- VIS 页显示当前 RAM free/total/largest block；
+- MIX 页在 PMD 模式下显示 10 轨活动/音量与 L/R 输出 VU；
+- `Space` 暂停/继续 PMD，仍停留在 PMD 模式；
+- 只有打开 `.P2S`、SYS Load 或 Demo/Song 才回到 STUDIO；
+- **PPZ8/ADPCM 不加载**，与 pocket-fmdsp 一致：PPZ8 静音，ADPCM stub。
+
 ### 音频
 
 - OPNA 原生 **55 466 Hz**；
@@ -110,19 +139,54 @@ SYS → `Song` 可重新载入。`Demo` 仍保留原始 demo。
 > 软件只用 `SYS → Output → Speaker / Headphones` 选择音量预设，
 > 用 `HP Gain` 降低耳机音量。
 
+### 配色文件
+
+首次启动会自动生成：
+
+```text
+/sdcard/OPNA/COLORS.CFG
+```
+
+- 文件存在时，启动会读取并应用；
+- 文件不存在时，使用内置配色并自动生成；
+- 编辑后重启生效；
+- 文件格式：
+
+```text
+# NAME RRGGBB
+BG 101826
+PANEL 202E42
+TEXT D8DCE8
+GOLD E0B060
+TRK0 E0B060
+ACC0 E0B060
+```
+
+可用名称：
+
+```text
+BG BG2 PANEL PANEL2 LINE TEXT DIM DIMMER
+GOLD CYAN GREEN RED ORANGE PURPLE WHITE YELLOW
+TRK0..TRK9
+ACC0..ACC5
+```
+
 ### 存储
 
 - SD 路径：`/sdcard`；
-- 存档：`/sdcard/opna2.p2s`；
+- 固件输出目录：`/sdcard/OPNA`；
+- 存档：`/sdcard/OPNA/opna2.p2s` 或 `Save As` 命名文件；
+- 最后项目：`/sdcard/OPNA/opna.cfg`；
 - 当前格式 **V4**，7 739 B；
 - 保存 song、16 patterns、长度、BPM、swing、chain、pattern、pages、音量、背光、HP Gain；
-- 开机自动加载；
-- V3/V2 会自动迁移。
+- 开机优先加载 `OPNA/opna.cfg` 记录的项目，失败回退 `OPNA/opna2.p2s`，再回退旧根目录 `opna2.p2s`；
+- V3/V2 会自动迁移；
+- `SYS → Save As` 使用 8.3 大写文件名和 `.P2S` 扩展名。
 
 ### MIDI
 
 - SYS → `Export MID`；
-- 输出 `/sdcard/opna2.mid`；
+- 输出 `/sdcard/OPNA/opna2.mid`；
 - SMF format 0，480 PPQ，16 patterns；
 - 鼓在 MIDI channel 10；
 - 当前是 **MIDI 文件导出**，不是 USB MIDI 输入/输出。
@@ -162,7 +226,7 @@ SYS → `Song` 可重新载入。`Demo` 仍保留原始 demo。
 | `Space` | 播放 / 停止 |
 | `Fn` | 切换 MOD |
 | 按住 `Fn` + `1`–`0` | 选择 pattern A–J |
-| 非 SYN 页面 `1`–`5` | 直接切页 |
+| 非 SYN 页面 `1`–`6` | 直接切页（6 = FILES） |
 | `` ` `` | 返回 / Esc |
 
 ### SYN 页
@@ -199,10 +263,26 @@ W/A/S/D 不再作为方向键；W/S/D 是钢琴键，A 忽略。
 - 按住 `Fn` + 数字：切 pattern；
 - 预览会使用当前 step 的 VEL/GATE。
 
+### FILES
+
+- `↑↓` 选择文件；
+- `Enter` 进入目录 / 打开 `.M` / 加载 `.P2S`；
+- `Backspace` 返回上级目录；
+- `Tab` 下一页；
+- `.M` 打开后进入 PMD 播放；
+- `.P2S` 加载项目并回到 SEQ；
+- PMD 播放时 `Space` 暂停/继续，仍停留在 PMD；
+- 打开 `.P2S` 或 SYS `Demo`/`Song` 才回到 STUDIO。
+
 ### MIX / SYS
 
 - MIX：`↑↓` 选轨，`←→` 调电平，`Enter` 静音；MASTER 行可调 master；
-- SYS：`↑↓` 选行，`←→` 改值，`Enter` 执行。
+- SYS：`↑↓` 选行，`←→` 改值，`Enter` 执行；
+- SYS → `Save As` 进入文件名编辑：
+  - 字母/数字/下划线；
+  - `Enter` 保存；
+  - `Backspace` 删除；
+  - `` ` `` 取消。
 
 ### SYS 顺序
 
@@ -220,6 +300,7 @@ Volume
 HP Gain
 Backlight
 Save
+Save As
 Load
 Export MID
 Demo
@@ -263,12 +344,42 @@ tools\idf.bat -p COMx flash monitor
 build\opna_studio_cardputer_merged.bin  (0x0)
 ```
 
+### GitHub Actions
+
+工作流：
+
+```text
+.github/workflows/release.yml
+```
+
+触发：
+
+- push tag `v0.5.0`、`v1.0` 或 `1.0`；
+- 手动 `workflow_dispatch`（只生成 artifact，不创建 release）。
+
+流水线使用 ESP-IDF 5.5.6 / esp32s3，执行：
+
+```text
+idf.py set-target esp32s3
+idf.py build
+idf.py merge-bin
+```
+
+发布内容：
+
+- `opna-studio-cardputer-<version>-merged.bin`（0x0 烧录）；
+- app bin；
+- bootloader / partition table；
+- `SHA256SUMS`；
+- 包含 README/LICENSE/NOTICE 的 zip。
+
 ---
 
 ## 目录
 
 ```text
 opna-studio-cardputer/
+├── .github/workflows/release.yml
 ├── CMakeLists.txt
 ├── sdkconfig.defaults
 ├── partitions.csv
@@ -276,7 +387,9 @@ opna-studio-cardputer/
 │   ├── main.cpp            显示/音频/SD/开机恢复/主循环
 │   ├── ui.cpp              双屏 UI
 │   ├── keyboard.cpp        TCA8418 映射
-│   ├── persist.cpp         V4 存档 + V2/V3 迁移
+│   ├── persist.cpp         V4 存档 + Save As + last cfg
+│   ├── file_manager.cpp    SD 目录浏览
+│   ├── pmd_audio.cpp       PMD .M 播放桥
 │   ├── midi.cpp            SMF 导出
 │   ├── stats.h             CPU/UND/FPS/耳机状态
 │   └── Panel_ILI9341.hpp
@@ -284,6 +397,7 @@ opna-studio-cardputer/
 │   ├── M5Unified/
 │   ├── m5gfx/
 │   ├── opna_core/          YM2608 核心
+│   ├── pmd_core/           pocket-fmdsp PMD driver
 │   └── studio/             engine / FFT / patches
 ├── docs/
 │   ├── ui.md
@@ -304,6 +418,8 @@ opna-studio-cardputer/
 - SYN 页数字键用于钢琴，切页用 `Tab`/`Backspace`（设计行为）；
 - 当前没有 USB MIDI 输入/输出，只有 `.mid` 文件导出（功能边界）；
 - 没有外部音色包加载器（功能边界）；
+- PMD 的 PPZ8/ADPCM 声部不加载：PPZ8 静音，ADPCM stub；
+- FILES 只浏览 `/sdcard`，8.3 文件名优先；
 - 512 KB SRAM 无 PSRAM，双 canvas 约 218 KB（硬件限制）；
 - 全通道曲目会增加音频负载，必要时在 MIX 静音 FM5/FM6/SSG2（性能提示）。
 

@@ -20,3 +20,8 @@ int ui_is_synth_page(void);
 int ui_mod_active(void);
 int ui_fn_held(void);
 int ui_piano_key(char c, int down);
+int ui_text_active(void);
+void ui_text_char(char c);
+void ui_text_backspace(void);
+void ui_text_commit(void);
+void ui_text_cancel(void);

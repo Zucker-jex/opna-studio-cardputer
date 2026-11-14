@@ -1,6 +1,6 @@
 # OPNA Studio Cardputer — engineering design
 
-**v0.4.0** · M5Stack Cardputer ADV · ESP32-S3FN8 · external ILI9341
+**v0.5.0** · M5Stack Cardputer ADV · ESP32-S3FN8 · external ILI9341
 320×240 · internal ST7789 240×135.
 
 This document is the plan for the Cardputer port. The reference P2 repository

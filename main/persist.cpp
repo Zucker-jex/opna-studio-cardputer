@@ -19,7 +19,9 @@
 #include "studio.h"
 #include "stats.h"
 
-#define FILE_PATH "/sdcard/opna2.p2s"
+#define FILE_PATH "/sdcard/OPNA/opna2.p2s"
+#define LAST_PATH "/sdcard/OPNA/opna.cfg"
+#define OLD_FILE_PATH "/sdcard/opna2.p2s"
 #define MAGIC "OPN2"
 #define VER 4
 
@@ -87,7 +89,7 @@ static uint16_t sum_bytes(const uint8_t *p, size_t n) {
   return (uint16_t)s;
 }
 
-int persist_save(int volume, int backlight) {
+int persist_save_path(const char *path, int volume, int backlight) {
   memset(&s_file, 0, sizeof(s_file));
   memcpy(s_file.magic, MAGIC, 4);
   s_file.ver = VER;
@@ -102,15 +104,15 @@ int persist_save(int volume, int backlight) {
   memcpy(&s_file.song, studio_song(), sizeof(s_file.song));
   s_file.sum = sum_bytes((const uint8_t *)&s_file, offsetof(struct st_file, sum));
 
-  FILE *fp = fopen(FILE_PATH, "wb");
+  FILE *fp = fopen(path, "wb");
   if (!fp) {
-    ESP_LOGE(TAG, "save open failed path=%s errno=%d", FILE_PATH, errno);
+    ESP_LOGE(TAG, "save open failed path=%s errno=%d", path, errno);
     return -1;
   }
   size_t n = fwrite(&s_file, 1, sizeof(s_file), fp);
   int fr = fflush(fp);
   int fc = fclose(fp);
-  ESP_LOGI(TAG, "save v4 %s: wrote %u/%u flush=%d close=%d", FILE_PATH,
+  ESP_LOGI(TAG, "save v4 %s: wrote %u/%u flush=%d close=%d", path,
            (unsigned)n, (unsigned)sizeof(s_file), fr, fc);
   return (n == sizeof(s_file) && fr == 0 && fc == 0) ? 1 : -1;
 }
@@ -133,10 +135,10 @@ static void apply_v3(void) {
   memset(dst->length, ST_STEPS, sizeof(dst->length));
 }
 
-int persist_load(int *volume, int *backlight) {
-  FILE *fp = fopen(FILE_PATH, "rb");
+int persist_load_path(const char *path, int *volume, int *backlight) {
+  FILE *fp = fopen(path, "rb");
   if (!fp) {
-    ESP_LOGW(TAG, "load open failed path=%s errno=%d", FILE_PATH, errno);
+    ESP_LOGW(TAG, "load open failed path=%s errno=%d", path, errno);
     return 0;
   }
   struct st_file_hdr h;
@@ -166,7 +168,7 @@ int persist_load(int *volume, int *backlight) {
       if (s_file.out >= 1 && s_file.out <= 100) g_hp_att = s_file.out;
       ok = 1;
     }
-    ESP_LOGI(TAG, "load v4 %s: read %u/%u", FILE_PATH, (unsigned)n,
+    ESP_LOGI(TAG, "load v4 %s: read %u/%u", path, (unsigned)n,
              (unsigned)sizeof(s_file));
   } else if (h.ver == 3) {
     size_t n = fread(&s_file_v3, 1, sizeof(s_file_v3), fp);
@@ -187,7 +189,7 @@ int persist_load(int *volume, int *backlight) {
       if (s_file_v3.out >= 1 && s_file_v3.out <= 100) g_hp_att = s_file_v3.out;
       ok = 1;
     }
-    ESP_LOGI(TAG, "load v3 %s: read %u/%u", FILE_PATH, (unsigned)n,
+    ESP_LOGI(TAG, "load v3 %s: read %u/%u", path, (unsigned)n,
              (unsigned)sizeof(s_file_v3));
   } else if (h.ver == 1 || h.ver == 2) {
     size_t n = fread(&s_file_v2, 1, sizeof(s_file_v2), fp);
@@ -206,9 +208,61 @@ int persist_load(int *volume, int *backlight) {
       if (s_file_v2.out >= 1 && s_file_v2.out <= 100) g_hp_att = s_file_v2.out;
       ok = 1;
     }
-    ESP_LOGI(TAG, "load v%d %s: read %u/%u", h.ver, FILE_PATH, (unsigned)n,
+    ESP_LOGI(TAG, "load v%d %s: read %u/%u", h.ver, path, (unsigned)n,
              (unsigned)sizeof(s_file_v2));
   }
   fclose(fp);
   return ok;
+}
+
+
+int persist_save(int volume, int backlight) {
+  int r = persist_save_path(FILE_PATH, volume, backlight);
+  if (r > 0) persist_write_last("opna2.p2s");
+  return r;
+}
+int persist_load(int *volume, int *backlight) {
+  int r = persist_load_path(FILE_PATH, volume, backlight);
+  if (r > 0) return r;
+  return persist_load_path(OLD_FILE_PATH, volume, backlight);
+}
+
+int persist_read_last(char *name, int cap) {
+  FILE *f = fopen(LAST_PATH, "rb");
+  if (!f) return 0;
+  char tmp[64] = {};
+  size_t n = fread(tmp, 1, sizeof(tmp) - 1, f);
+  fclose(f);
+  if (!n) return 0;
+  while (n && (tmp[n-1] == '\r' || tmp[n-1] == '\n' || tmp[n-1] == ' ')) tmp[--n] = 0;
+  char *p = strrchr(tmp, '/');
+  if (p) memmove(tmp, p + 1, strlen(p + 1) + 1);
+  if (!tmp[0] || strlen(tmp) >= (size_t)cap) return 0;
+  strncpy(name, tmp, (size_t)cap - 1);
+  name[cap-1] = 0;
+  return 1;
+}
+
+int persist_write_last(const char *name) {
+  FILE *f = fopen(LAST_PATH, "wb");
+  if (!f) return -1;
+  size_t n = strlen(name);
+  size_t w = fwrite(name, 1, n, f);
+  fputc('\n', f);
+  fclose(f);
+  return w == n ? 1 : -1;
+}
+
+int persist_load_last(int *volume, int *backlight) {
+  char name[48];
+  if (persist_read_last(name, sizeof(name))) {
+    char path[80];
+    snprintf(path, sizeof(path), "/sdcard/OPNA/%s", name);
+    int r = persist_load_path(path, volume, backlight);
+    if (r > 0) return r;
+    ESP_LOGW(TAG, "last project missing, fallback");
+  }
+  int r = persist_load_path(FILE_PATH, volume, backlight);
+  if (r > 0) return r;
+  return persist_load_path(OLD_FILE_PATH, volume, backlight);
 }

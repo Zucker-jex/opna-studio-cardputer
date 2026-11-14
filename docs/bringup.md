@@ -23,8 +23,8 @@ SD mounted at /sdcard
 SD write probe: wrote=4 flush=0 close=0
 ES8311 I2S 48k stereo ready
 TCA8418 ready
-persist: load v4 /sdcard/opna2.p2s
-auto-load: applied /sdcard/opna2.p2s
+persist: load v4 /sdcard/OPNA/TEST.P2S
+auto-load: applied last project
 phase 3 ready
 OPNA engine task started
 ```
@@ -95,7 +95,7 @@ Save / Load / Export MID / Demo / Song / Battery / Tilt / Engine / Shutdown
 2. Output 手动 Speaker / Headphones（只改音量预设）；
 3. HP Gain 3% / 1%；
 4. Save 后重启恢复；
-5. Export MID 写 `/sdcard/opna2.mid`；
+5. Export MID 写 `/sdcard/OPNA/opna2.mid`；
 6. Song 载入 Fracture Protocol；
 7. Shutdown 最后测试。
 
@@ -116,10 +116,33 @@ audio vol=8/10 gain=24/1000 hp=1 override=1 att=3%
 拔掉耳机后喇叭恢复；需要时把 Output 切回 `Speaker`。
 AMP_EN 始终由 MCU 保持高，插入耳机时由 Q4 拉低。
 
+## PMD / FILES
+
+1. 将 `TH04_07.M` 放到 `/sdcard`；
+2. 按 `6` / Tab 进入 FILES；
+3. 选中 `.M`，Enter 播放；
+4. SEQ 页显示 PMD 只读监视器；
+5. Space 暂停/继续，仍停留在 PMD；
+5. 打开 `.P2S` 或 SYS Demo/Song 才回到 STUDIO；
+5a. SEQ 监视器不应把持续音重复铺满 16 列；
+5b. VIS 页应显示 PMD 输出波形；
+5c. VIS 页应显示 RAM free/total/blk；
+5d. MIX 页应显示 PMD 10 轨活动/音量与 L/R VU；
+5e. `/sdcard/OPNA/COLORS.CFG` 应自动生成，修改后重启生效；
+6. PPZ8/ADPCM 声部保持静音，这是与 pocket-fmdsp 一致的行为。
+
+## Save As / 最后项目
+
+1. SYS → `Save As`；
+2. 输入 8.3 名称，Enter 保存；
+3. 确认 `/sdcard/OPNA/NAME.P2S` 和 `/sdcard/OPNA/opna.cfg`；
+4. 重启应加载最后项目；
+5. 缺少时回退 `/sdcard/OPNA/opna2.p2s`，再回退旧根目录 `opna2.p2s`。
+
 ## MIDI
 
 - SYS → Export MID；
-- 确认 `/sdcard/opna2.mid`；
+- 确认 `/sdcard/OPNA/opna2.mid`；
 - DAW 打开，检查 16 patterns、鼓通道 10。
 
 ## 设计说明 / 注意事项

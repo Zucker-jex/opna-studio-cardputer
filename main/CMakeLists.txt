@@ -1,5 +1,5 @@
 idf_component_register(
-  SRCS "main.cpp" "ui.cpp" "keyboard.cpp" "persist.cpp" "midi.cpp"
+  SRCS "main.cpp" "ui.cpp" "keyboard.cpp" "persist.cpp" "midi.cpp" "pmd_audio.cpp" "file_manager.cpp"
   INCLUDE_DIRS "."
   REQUIRES
     M5Unified
@@ -10,4 +10,5 @@ idf_component_register(
     sdmmc
     fatfs
     studio
+    pmd_core
 )

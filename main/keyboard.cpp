@@ -64,6 +64,14 @@ static char key_char(uint8_t code) {
 }
 
 static void press(uint8_t code) {
+  if (ui_text_active()) {
+    if (code == 67) { ui_text_commit(); return; }
+    if (code == 65) { ui_text_backspace(); return; }
+    if (code == 1) { ui_text_cancel(); return; }
+    char tc = key_char(code);
+    if (tc) ui_text_char(tc);
+    return;
+  }
   if (code == 3) { s_fn = true; ui_key(UI_FN_DOWN); return; }
   if (code == 2) { ui_key(UI_PAGE_NEXT); return; }
   if (code == 65) { ui_key(UI_PAGE_PREV); return; }

@@ -1,0 +1,112 @@
+name: Build & Release Firmware
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - '[0-9]*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: firmware-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ESP-IDF build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Remove Windows-generated lockfile
+        run: rm -f dependencies.lock
+
+      - name: Build with ESP-IDF 5.5.6
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5.6
+          target: esp32s3
+          path: .
+          command: idf.py set-target esp32s3 && idf.py build && idf.py merge-bin
+
+      - name: Set version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="dev-${GITHUB_SHA::8}"
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Firmware version: $VERSION"
+
+      - name: Collect release files
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp build/opna_studio_cardputer.bin dist/
+          cp build/merged-binary.bin dist/opna_studio_cardputer_merged.bin
+          cp build/bootloader/bootloader.bin dist/
+          cp build/partition_table/partition-table.bin dist/
+          cp README.md LICENSE NOTICE.md dist/
+          cp "dist/opna_studio_cardputer_merged.bin" "dist/opna-studio-cardputer-${VERSION}-merged.bin"
+          cp "dist/opna_studio_cardputer.bin" "dist/opna-studio-cardputer-${VERSION}.bin"
+          (cd dist && zip -9 -r "opna-studio-cardputer-${VERSION}.zip" \
+            opna_studio_cardputer_merged.bin \
+            opna_studio_cardputer.bin \
+            bootloader.bin \
+            partition-table.bin \
+            README.md LICENSE NOTICE.md)
+          (cd dist && sha256sum *.bin *.zip > SHA256SUMS)
+          ls -lh dist
+
+      - name: Build summary
+        run: |
+          {
+            echo "## OPNA Studio Cardputer ${VERSION}"
+            echo ""
+            echo "| File | Size |"
+            echo "|---|---:|"
+            stat -c '| `%n` | %s bytes |' dist/*.bin dist/*.zip
+            echo ""
+            echo "Merged image is flashed at **0x0**."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: opna-studio-cardputer-${{ env.VERSION }}
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: OPNA Studio Cardputer ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: dist/*
+          body: |
+            OPNA Studio Cardputer firmware **${{ env.VERSION }}**.
+
+            ### Flash
+
+            Use the merged image at address `0x0`:
+
+            ```bash
+            esptool.py --chip esp32s3 -p /dev/ttyACM0 \
+              write_flash 0x0 opna_studio_cardputer_merged.bin
+            ```
+
+            Or use `opna-studio-cardputer-${{ env.VERSION }}.zip` and the
+            included `SHA256SUMS`.
+
+            ### Notes
+
+            - ESP-IDF 5.5.6, target esp32s3.
+            - PMD playback: FM/SSG/Rhythm; PPZ8/ADPCM remain silent.
+            - SD output directory: `/sdcard/OPNA`.

@@ -7,7 +7,7 @@ y   0..17    状态栏：OPNA STUDIO / PLAY / BPM / PAT / SD / MOD
 y  18..47    页标题 + 当前上下文
 y  48..206   页面内容
 y 207..223   快捷键提示
-y 224..239   五个页签：SEQ SYN MIX VIS SYS
+y 224..239   六个页签：SEQ SYN MIX VIS SYS FILE
 ```
 
 ### SEQ
@@ -41,6 +41,25 @@ y 224..239   五个页签：SEQ SYN MIX VIS SYS
 - `Enter` 切换；
 - 底部显示 CPU / UND / FPS。
 
+### 配色
+
+- 启动读取 `/sdcard/OPNA/COLORS.CFG`；
+- 不存在则生成默认配色；
+- 修改后重启生效。
+
+### FILES
+
+- SD 根目录 `/sdcard`；
+- 目录优先，文件显示大小；
+- `.M` → PMD 播放；
+- `.P2S` → 项目加载（并回到 STUDIO）；
+- `↑↓` 选择，`Enter` 打开，`Backspace` 上级，`Tab` 下一页；
+- PMD 播放时显示文件名/标题，`Space` 暂停/继续；
+- PMD 播放时 SEQ 监视器只画音高变化事件，持续音不会重复铺满；
+- PMD 播放时 VIS 页显示输出波形而不是 studio FFT；
+- VIS 页显示 RAM free / total / largest block；
+- PMD 播放时 MIX 页显示 FM1–6/SSG1–3/RHY 的活动与音量，以及 L/R 输出 VU。
+
 ### SYS
 
 滚动列表，10 行可见。顺序：
@@ -59,6 +78,7 @@ Volume
 HP Gain
 Backlight
 Save
+Save As
 Load
 Export MID
 Demo
@@ -77,7 +97,8 @@ Shutdown
 - `Length` 当前 pattern 长度 1–16；
 - `Copy` 当前 pattern → 下一个；
 - `Clear` 清空当前 pattern；
-- `Export MID` 写 `/sdcard/opna2.mid`；
+- `Save As` 进入文件名编辑，保存 `/sdcard/OPNA/NAME.P2S` 并写 `/sdcard/OPNA/opna.cfg`；
+- `Export MID` 写 `/sdcard/OPNA/opna2.mid`；
 - `Song` 载入 Fracture Protocol；
 - `Shutdown` 关机。
 

@@ -6,7 +6,7 @@
  *   - internal ST7789V2 (M5GFX/SPI3) and external ILI9341 (SPI2, 20 MHz);
  *   - microSD on the same SPI2 bus (LCD CS5, SD CS12);
  *   - ES8311 + I2S0 at 48 kHz and the 55,466 -> 48,000 resampler;
- *   - TCA8418 polling, auto-load of /sdcard/opna2.p2s;
+ *   - TCA8418 polling, auto-load of the last project in /sdcard/OPNA;
  *   - engine mutex shared by the core-1 audio task and the core-0 UI.
  *
  * Boot order is deliberate: SD -> audio -> studio -> persist -> UI -> audio
@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/stat.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -36,6 +37,7 @@
 #include "studio_guard.h"
 #include "persist.h"
 #include "stats.h"
+#include "pmd_audio.h"
 #include "freertos/semphr.h"
 
 static const char *TAG = "opna-cardputer";
@@ -63,6 +65,9 @@ volatile int g_tilt_y = 0;
 volatile int g_headphones = 0;
 volatile int g_hp_override = 0;  /* manual: 0=speaker, 1=headphones */
 volatile int g_hp_att = 3;  /* headphone gain, percent of speaker scale */
+int16_t g_audio_scope[128];
+volatile unsigned g_audio_scope_w;
+volatile int g_pmd_level[2];
 static SemaphoreHandle_t s_studio_mtx = nullptr;
 
 void studio_guard_init(void) {
@@ -247,8 +252,9 @@ static bool mount_sd() {
     return false;
   }
   ESP_LOGI(TAG, "SD mounted at /sdcard (%s)", s_card->cid.name);
+  mkdir("/sdcard/OPNA", 0777);
 
-  FILE *probe = fopen("/sdcard/OPNA.TXT", "wb");
+  FILE *probe = fopen("/sdcard/OPNA/PROBE.TXT", "wb");
   if (!probe) {
     ESP_LOGE(TAG, "SD write probe open failed errno=%d", errno);
   } else {
@@ -257,7 +263,7 @@ static bool mount_sd() {
     int fc = fclose(probe);
     ESP_LOGI(TAG, "SD write probe: wrote=%u flush=%d close=%d", (unsigned)n,
              fr, fc);
-    remove("/sdcard/OPNA.TXT");
+    remove("/sdcard/OPNA/PROBE.TXT");
   }
   return true;
 }
@@ -282,8 +288,14 @@ static void studio_audio_task(void *arg) {
   while (true) {
     uint32_t t0 = (uint32_t)esp_timer_get_time();
     studio_lock();
-    bool idle = studio_is_idle();
-    if (!idle) studio_render(native, 1024);
+    bool pmd = pmd_audio_active();
+    bool idle = false;
+    if (pmd) {
+      pmd_audio_render(native, 1024);
+    } else {
+      idle = studio_is_idle();
+      if (!idle) studio_render(native, 1024);
+    }
     int vol = g_volume;
     int hp = (g_headphones || g_hp_override == 1) ? 1 : 0;
     int gain_num = vol * (hp ? g_hp_att : 100);  /* 0..1000 */
@@ -300,7 +312,7 @@ static void studio_audio_task(void *arg) {
                (int)g_hp_att);
     }
     if (used > 18460u) g_underruns = g_underruns + 1;
-    if (idle) memset(native, 0, sizeof(native));
+    if (!pmd && idle) memset(native, 0, sizeof(native));
     src[0] = last_l;
     src[1] = last_r;
     memcpy(src + 2, native, sizeof(native));
@@ -323,6 +335,32 @@ static void studio_audio_task(void *arg) {
     last_l = src[2 * 1024];
     last_r = src[2 * 1024 + 1];
     phase -= 1024u << 16;
+
+    unsigned sw = g_audio_scope_w;
+    for (int i = 0; i < outn; i++) {
+      int l = out[2 * i], r = out[2 * i + 1];
+      int al = l < 0 ? -l : l, ar = r < 0 ? -r : r;
+      /* Keep the louder channel instead of L+R/2: PMD pans channels hard,
+         and the average can look nearly flat even when audio is fine. */
+      g_audio_scope[sw & 127] = (int16_t)(al >= ar ? l : r);
+      sw++;
+    }
+    g_audio_scope_w = sw;
+
+    int pl = 0, pr = 0;
+    for (int i = 0; i < outn; i++) {
+      int l = out[2 * i], r = out[2 * i + 1];
+      if (l < 0) l = -l;
+      if (r < 0) r = -r;
+      if (l > pl) pl = l;
+      if (r > pr) pr = r;
+    }
+    int nl = pl * 100 / 32768;
+    int nr = pr * 100 / 32768;
+    if (nl < g_pmd_level[0]) nl = (g_pmd_level[0] * 3) / 4;
+    if (nr < g_pmd_level[1]) nr = (g_pmd_level[1] * 3) / 4;
+    g_pmd_level[0] = nl;
+    g_pmd_level[1] = nr;
 
     size_t written = 0;
     if (i2s_channel_write(s_i2s_tx, out, (size_t)outn * 4, &written,
@@ -354,15 +392,15 @@ extern "C" void app_main(void) {
   studio_init();
   int load_vol = g_volume;
   int load_bl = g_backlight;
-  int loaded = persist_load(&load_vol, &load_bl);
+  int loaded = persist_load_last(&load_vol, &load_bl);
   if (loaded <= 0) {
     studio_song_fracture();
     ESP_LOGI(TAG, "auto-load: %s", loaded == 0 ? "no save, fracture" : "save invalid, fracture");
   } else {
     g_volume = load_vol;
-    g_backlight = load_bl;
+    g_backlight = (load_bl < 8) ? 180 : load_bl;
     M5.Display.setBrightness((uint8_t)g_backlight);
-    ESP_LOGI(TAG, "auto-load: applied /sdcard/opna2.p2s");
+    ESP_LOGI(TAG, "auto-load: applied last project");
   }
   studio_set_analysis(0);
   studio_play(1);
