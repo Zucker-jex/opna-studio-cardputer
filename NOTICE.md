@@ -1,6 +1,6 @@
 # NOTICE — third-party code and changes
 
-**OPNA Studio Cardputer · v0.5.0 · 2026-11**
+**OPNA Studio Cardputer · v3.0 · 2026-11**
 
 This is the Cardputer port of OPNA Studio P2. The OPNA core/BSP attribution
 below is inherited from P2. In addition, this project vendors:

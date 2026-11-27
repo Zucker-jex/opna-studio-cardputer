@@ -1,7 +1,7 @@
 # OPNA Studio Cardputer
 
 > **面向 M5Stack Cardputer ADV 的双屏 OPNA FM 工作站**  
-> 版本 **0.5.0** · 2026-11-14
+> 版本 **3.0** · 2026-11-27
 
 OPNA Studio Cardputer 是把 **OPNA Studio P2** 的 OPNA 引擎、音序器和像素视觉语言，移植到 Cardputer ADV 的独立项目。
 
@@ -35,7 +35,7 @@ Merged: 1 012 672 B (0xF73C0)
 ```
 
 > 原有双屏、音频、键盘、SEQ/MIX/SYS、存档和 MIDI 已在开发样机验证。
-> v0.5 新增 PMD 播放、FILES 页和 Save As，已编译通过并做过 host 侧 PMD 样本测试，
+> v3.0 新增 PMD 播放、FILES 页、Save As 和日文标题，已编译通过并做过 host 侧 PMD 样本测试，
 > 仍需在 Cardputer 上完成最终回归。
 > ADV 的 Stamp-S3 连接座没有引出耳机检测 GPIO，因此本项目**不实现软件自动检测**。
 > 耳机插入时由硬件 Q4 将 AMP_EN 拉低，自动关闭 NS4150B；MCU 始终把 AMP_EN 保持高。
@@ -378,7 +378,7 @@ build\opna_studio_cardputer_merged.bin  (0x0)
 
 触发：
 
-- push tag `v0.5.0`、`v1.0` 或 `1.0`；
+- push tag `v3.0`、`3.0`、`v0.5.0` 或 `1.0`；
 - 手动 `workflow_dispatch`（只生成 artifact，不创建 release）。
 
 流水线使用 ESP-IDF 5.5.6 / esp32s3，执行：
