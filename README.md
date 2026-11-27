@@ -30,8 +30,8 @@ OPNA Studio Cardputer 是把 **OPNA Studio P2** 的 OPNA 引擎、音序器和�
 
 ```text
 ESP-IDF 5.5.6 / esp32s3
-App:    691 056 B (0xA8B70)
-Merged: 756 592 B (0xB8B70)
+App:    947 136 B (0xE73C0)
+Merged: 1 012 672 B (0xF73C0)
 ```
 
 > 原有双屏、音频、键盘、SEQ/MIX/SYS、存档和 MIDI 已在开发样机验证。
@@ -110,7 +110,11 @@ SYS → `Song` 可重新载入。`Demo` 仍保留原始 demo。
 - 播放 FM1–FM6、SSG1–SSG3、Rhythm；
 - 原生 55 466 Hz，继续走 48 kHz 重采样；
 - PMD 模式在 SEQ 页显示只读监视器：
-  - 10 行：FM1–FM6 / SSG1–SSG3 / RHY；
+  - MIX 共 19 行（SSG3 拆 T/N，鼓拆 6 个声部），10 行可见，↑↓ 滚动：
+    - FM1–FM6 + FM3B/FM3C/FM3D（共 9 个 FM 逻辑通道）；
+    - SSG1/SSG2；
+    - SSG3-T / SSG3-N（同一物理 SSG3 的 tone/noise 分量，共享 mute）；
+    - BD / SD / TOP / HH / TOM / RIM（6 个独立鼓声部，独立 mute）；
   - 16 列：最近 16 个时间格；
   - 显示标题、活动音高；
   - 不能编辑；
@@ -118,7 +122,8 @@ SYS → `Song` 可重新载入。`Demo` 仍保留原始 demo。
 - PMD 暂停时 SEQ 历史立即冻结，不再继续滚动到空白；
 - VIS 页在 PMD 模式下显示 PMD 输出波形；
 - VIS 页显示当前 RAM free/total/largest block；
-- MIX 页在 PMD 模式下显示 10 轨活动/音量与 L/R 输出 VU；
+- MIX 页在 PMD 模式下显示全部 19 行（SSG3 拆 T/N、鼓拆 6 声部），以及 L/R 输出 VU；
+- PMD MIX 中 `↑↓` 选通道，`Enter` 开关 FM1–6 / SSG1–3 / DRM；
 - `Space` 暂停/继续 PMD，仍停留在 PMD 模式；
 - 只有打开 `.P2S`、SYS Load 或 Demo/Song 才回到 STUDIO；
 - **PPZ8/ADPCM 不加载**，与 pocket-fmdsp 一致：PPZ8 静音，ADPCM stub。
@@ -138,6 +143,25 @@ SYS → `Song` 可重新载入。`Demo` 仍保留原始 demo。
 > 注意：ADV 连接座没有耳机检测 GPIO；扬声器静音由 Q4 硬件完成。
 > 软件只用 `SYS → Output → Speaker / Headphones` 选择音量预设，
 > 用 `HP Gain` 降低耳机音量。
+
+### PMD 日文标题
+
+PMD 标题使用 **Shift-JIS / CP932**。固件不再把非 ASCII 字符替换成 `?`，而是：
+
+- 保留原始 CP932 标题；
+- 用从 **Fusion Pixel 12px monospaced ja** 生成的 12×12 1bpp 字模；
+- 在 PMD 的 FILES / SEQ 标题栏右对齐显示；
+- 覆盖 9 762 个 CP932 字形；
+- 未知字符回退为 `?`。
+
+字模生成在：
+
+```text
+tools/gen_fusion_pixel_12_ja.py
+main/jp_font_data.h
+```
+
+源码 TTF 不进入运行固件，生成后已从仓库删除；字体授权为 SIL OFL 1.1，见 `docs/FUSION-PIXEL-OFL.txt`。
 
 ### 配色文件
 

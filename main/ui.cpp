@@ -26,6 +26,7 @@
 #include "stats.h"
 #include "file_manager.h"
 #include "pmd_audio.h"
+#include "jp_font.h"
 #include <M5Unified.hpp>
 #include <esp_heap_caps.h>
 #include <esp_system.h>
@@ -72,6 +73,8 @@ static int clampi(int v, int lo, int hi);
 static char s_msg[40];
 static int s_syn_patch = 0, s_syn_key = 0, s_syn_octave = 0;
 static int s_mix_sel = 0;
+static int s_pmd_mix_sel = 0;
+static int s_pmd_mix_top = 0;
 enum {
   SYS_BPM, SYS_SWING, SYS_CHAIN, SYS_PATTERN, SYS_PAGES, SYS_LENGTH,
   SYS_COPY, SYS_CLEAR, SYS_OUTPUT, SYS_VOLUME, SYS_HP_GAIN, SYS_BACKLIGHT,
@@ -178,7 +181,12 @@ static void draw_header(lgfx::LovyanGFX *d) {
   else if (s_page == 1) snprintf(b, sizeof(b), "LIVE FM6 / ARP");
   else snprintf(b, sizeof(b), "PATTERN %c  CHAIN %s", 'A' + studio_pattern(),
                 studio_chain() ? "ON" : "OFF");
-  text_r(d, 314, 24, b, C_DIM);
+  if (pmd_audio_active() && (s_page == 0 || s_page == 5)) {
+    jp_draw_title_header(d, 314, 22, pmd_audio_title_raw(),
+                         pmd_audio_paused() ? C_GOLD : C_CYAN);
+  } else {
+    text_r(d, 314, 24, b, C_DIM);
+  }
   d->fillRect(0, 47, 320, 1, C_LINE);
 }
 
@@ -209,7 +217,7 @@ static void draw_hint(lgfx::LovyanGFX *d, const char *s) {
 
 static const char *pmd_row_name(int i) {
   static const char *const n[10] = {"FM1","FM2","FM3","FM4","FM5","FM6",
-                                    "SSG1","SSG2","SSG3","RHY"};
+                                    "SSG1","SSG2","SSG3","DRM"};
   return n[i];
 }
 
@@ -227,7 +235,6 @@ static void draw_pmd_seq(lgfx::LovyanGFX *d) {
   set_font(d, 1);
   text(d, 6, 51, pmd_audio_paused() ? "PMD PAUSED" : "PMD MONITOR",
        pmd_audio_paused() ? C_GOLD : C_GREEN);
-  text_r(d, 314, 51, pmd_audio_title(), C_CYAN);
   for (int r = 0; r < 10; r++) {
     int y = 64 + r * 13;
     text(d, 4, y, pmd_row_name(r), r == 9 ? C_ORANGE : C_DIM);
@@ -360,29 +367,77 @@ static void draw_syn(lgfx::LovyanGFX *d) {
 static void draw_pmd_mix(lgfx::LovyanGFX *d) {
   d->fillRect(0, 48, 320, 159, C_BG);
   set_font(d, 1);
-  uint8_t key[10], act[10], vol[10];
+  static const char *const names[PMD_MIX_CHANNELS] = {
+    "FM1","FM2","FM3","FM3B","FM3C","FM3D","FM4","FM5","FM6",
+    "SSG1","SSG2","SSG3-T","SSG3-N",
+    "BD","SD","TOP","HH","TOM","RIM"
+  };
+  uint8_t all_key[PMD_ALL_CHANNELS], all_act[PMD_ALL_CHANNELS], all_vol[PMD_ALL_CHANNELS];
+  uint8_t all_tone[PMD_ALL_CHANNELS], all_noise[PMD_ALL_CHANNELS];
+  uint8_t dr_act[6], dr_lvl[6];
   studio_lock();
-  pmd_audio_track_snapshot(key, act, vol);
+  pmd_audio_snapshot_all(all_key, all_act, all_vol, all_tone, all_noise);
+  pmd_audio_drum_snapshot(dr_act, dr_lvl);
   studio_unlock();
-  for (int t = 0; t < 10; t++) {
-    int y = 52 + t * 13;
-    text(d, 6, y, pmd_row_name(t), t == 9 ? C_ORANGE : C_DIM);
-    int lv = vol[t] > 15 ? 15 : vol[t];
-    d->fillRect(48, y + 3, 150, 6, C_PANEL);
-    d->fillRect(48, y + 3, lv * 10, 6, act[t] ? C_GREEN : C_DIMMER);
+  if (s_pmd_mix_sel < 0) s_pmd_mix_sel = 0;
+  if (s_pmd_mix_sel >= PMD_MIX_CHANNELS) s_pmd_mix_sel = PMD_MIX_CHANNELS - 1;
+  int top = s_pmd_mix_top;
+  if (s_pmd_mix_sel < top) top = s_pmd_mix_sel;
+  if (s_pmd_mix_sel >= top + 10) top = s_pmd_mix_sel - 9;
+  if (top < 0) top = 0;
+  s_pmd_mix_top = top;
+  char hb[24];
+  snprintf(hb, sizeof(hb), "%d/%d", s_pmd_mix_sel + 1, PMD_MIX_CHANNELS);
+  text_r(d, 314, 51, hb, C_DIM);
+  for (int i = 0; i < 10 && top + i < PMD_MIX_CHANNELS; i++) {
+    int t = top + i;
+    int y = 64 + i * 13;
+    bool sel = (t == s_pmd_mix_sel);
+    bool muted = pmd_audio_channel_muted(t);
+    bool act, tone, noise;
+    int vol, key;
+    if (t >= 13) {
+      int d0 = t - 13;
+      act = dr_act[d0] != 0;
+      tone = noise = false;
+      vol = act ? 12 : 0;
+      key = 0;
+    } else {
+      int src = t;
+      act = all_act[src] != 0;
+      vol = all_vol[src];
+      key = all_key[src];
+      tone = all_tone[src] != 0;
+      noise = all_noise[src] != 0;
+      if (t == 11) { if (!tone && !noise) tone = true; act = act && tone; }
+      if (t == 12) { act = act && noise; }
+    }
+    if (sel) d->fillRect(0, y - 1, 280, 13, C_PANEL2);
+    d->fillRect(0, y - 1, 2, 13, sel ? C_GOLD : C_LINE);
+    text(d, 6, y, names[t], sel ? C_WHITE : (muted ? C_RED : C_DIM));
+    int lv = vol > 15 ? 15 : vol;
+    d->fillRect(48, y + 3, 144, 6, C_PANEL);
+    d->fillRect(48, y + 3, lv * 9, 6,
+                muted ? C_RED : (act ? C_GREEN : C_DIMMER));
     char b[16];
-    if (act[t]) snprintf(b, sizeof(b), "%d", key[t]);
+    if (t >= 13) snprintf(b, sizeof(b), act ? "HIT" : "--");
+    else if (act) snprintf(b, sizeof(b), "%d", key);
     else snprintf(b, sizeof(b), "--");
-    text(d, 206, y, b, act[t] ? C_WHITE : C_DIMMER);
-    text(d, 238, y, act[t] ? "ON" : "IDLE", act[t] ? C_GREEN : C_DIMMER);
+    text(d, 198, y, b, sel ? C_WHITE : (act ? C_TEXT : C_DIMMER));
+    const char *state;
+    uint16_t state_col;
+    if (muted) { state = "MUTE"; state_col = C_RED; }
+    else if (act) { state = "ON"; state_col = C_GREEN; }
+    else { state = "IDLE"; state_col = C_DIMMER; }
+    text(d, 238, y, state, sel ? C_WHITE : state_col);
   }
   for (int c = 0; c < 2; c++) {
     int x = 288 + c * 12;
-    d->fillRect(x, 52, 8, 122, C_PANEL);
-    int h = (g_pmd_level[c] * 118) / 100;
-    d->fillRect(x, 170 - h, 8, h, c ? C_CYAN : C_GREEN);
+    d->fillRect(x, 64, 8, 120, C_PANEL);
+    int h = (g_pmd_level[c] * 116) / 100;
+    d->fillRect(x, 182 - h, 8, h, c ? C_CYAN : C_GREEN);
   }
-  draw_hint(d, "PMD MIX  Space pause  Tab page");
+  draw_hint(d, "Enter mute  Space pause  Tab page");
 }
 
 static void draw_mix(lgfx::LovyanGFX *d) {
@@ -564,12 +619,7 @@ static void draw_files(lgfx::LovyanGFX *d) {
   d->fillRect(0, 48, 320, 159, C_BG);
   set_font(d, 1);
   text(d, 6, 51, fm_path(), C_DIM);
-  if (pmd_audio_active()) {
-    char pb[32];
-    snprintf(pb, sizeof(pb), "%s %s",
-             pmd_audio_paused() ? "||PAUSE" : "PLAY", pmd_audio_title());
-    text_r(d, 314, 51, pb, pmd_audio_paused() ? C_GOLD : C_GREEN);
-  } else {
+  {
     char n[32];
     snprintf(n, sizeof(n), "%d items", fm_count());
     text_r(d, 314, 51, n, C_DIM);
@@ -1120,7 +1170,10 @@ void ui_key(int key) {
         set_msg(ob);
       }
     } else if (s_page == 2) {
-      s_mix_sel = (s_mix_sel + (d > 0 ? 1 : 10)) % 11;
+      if (pmd_audio_active())
+        s_pmd_mix_sel = (s_pmd_mix_sel + (d > 0 ? 1 : PMD_MIX_CHANNELS - 1)) % PMD_MIX_CHANNELS;
+      else
+        s_mix_sel = (s_mix_sel + (d > 0 ? 1 : 10)) % 11;
     } else if (s_page == 4) {
       s_sys_sel = (s_sys_sel + (d > 0 ? 1 : SYS_ROWS - 1)) % SYS_ROWS;
     } else if (s_page == 5) {
@@ -1149,7 +1202,9 @@ void ui_key(int key) {
       s_syn_key = (s_syn_key + (d > 0 ? 1 : 23)) % 24;
       s_seq_pencil = clampi(60 + s_syn_octave * 12 + s_syn_key, 0, 127);
     } else if (s_page == 2) {
-      if (s_mix_sel < 10) {
+      if (pmd_audio_active()) {
+        /* PMD channel volume is controlled by the source MML. */
+      } else if (s_mix_sel < 10) {
         struct st_song *song = studio_song();
         studio_lock();
         song->level[s_mix_sel] = (uint8_t)clampi(song->level[s_mix_sel] + d, 0, 15);
@@ -1262,6 +1317,11 @@ void ui_key(int key) {
       studio_unlock();
       set_msg("LIVE HOLD");
       s_force_hud = true;
+    } else if (s_page == 2 && pmd_audio_active()) {
+      studio_lock();
+      pmd_audio_toggle_channel(s_pmd_mix_sel);
+      studio_unlock();
+      s_force_ext = s_force_hud = true;
     } else if (s_page == 2 && s_mix_sel < 10) {
       struct st_song *song = studio_song();
       studio_lock();
@@ -1283,6 +1343,8 @@ void ui_key(int key) {
         fm_full_path(s_file_sel, path, sizeof(path));
         studio_lock();
         studio_play(0);
+        s_pmd_mix_sel = 0;
+        s_pmd_mix_top = 0;
         int r = pmd_audio_load(path);
         studio_unlock();
         set_msg(r == 0 ? pmd_audio_title() : "PMD ERROR");

@@ -5885,6 +5885,17 @@ static void pmd_work_status_update(
         0xff : fmdriver_ppz8_freq2key(part->output_freq);
       break;
     }
+    /* SSG3 can keep sounding through the SSG-effect stream after its
+       MML part has ended; show that activity instead of IDLE. */
+    if (part == &pmd->parts[PMD_PART_SSG_3] && pmd->ssgeff_on) {
+      track->playing = true;
+      track->info = FMDRIVER_TRACK_INFO_SSGEFF;
+      if (track->key == 0xff && track->actual_key != 0xff)
+        track->key = track->actual_key;
+      if (!track->volume) track->volume = 12;
+      track->ssg_tone = pmd->ssgeff_tone_mix;
+      track->ssg_noise = pmd->ssgeff_noise_mix;
+    }
   }
   work->ssg_noise_freq = pmd->ssg_noise_freq_wrote;
 }

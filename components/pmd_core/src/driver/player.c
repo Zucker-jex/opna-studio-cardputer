@@ -115,12 +115,39 @@ void pfm_player_track_snapshot(pfm_player *p, struct pmd_track_view out[10]) {
     out[i].key = t->key;
     out[i].volume = t->volume;
     out[i].gate = t->gate;
+    out[i].tone = t->ssg_tone;
+    out[i].noise = t->ssg_noise;
   }
   out[9].playing = g_rhythm_hit;
   out[9].key = 0;
   out[9].volume = 12;
   out[9].gate = 1;
   g_rhythm_hit = 0;
+}
+
+void pfm_player_track_snapshot_all(pfm_player *p, struct pmd_track_view out[22]) {
+  memset(out, 0, sizeof(struct pmd_track_view) * 22);
+  for (int i = 0; i < FMDRIVER_TRACK_NUM; i++) {
+    const struct fmdriver_track_status *t = &p->work.track_status[i];
+    out[i].playing = t->playing ? 1 : 0;
+    out[i].key = t->key;
+    out[i].volume = t->volume;
+    out[i].gate = t->gate;
+    out[i].tone = t->ssg_tone;
+    out[i].noise = t->ssg_noise;
+  }
+  out[21].playing = g_rhythm_hit;
+  out[21].key = 0;
+  out[21].volume = 12;
+  out[21].gate = 1;
+  g_rhythm_hit = 0;
+}
+
+void pfm_player_drum_snapshot(pfm_player *p, uint8_t active[6], uint8_t level[6]) {
+  for (int d = 0; d < 6; d++) {
+    active[d] = p->opna.drum.v[d].playing ? 1 : 0;
+    level[d] = p->opna.drum.v[d].level;
+  }
 }
 
 const char *pfm_player_get_title(pfm_player *p) {

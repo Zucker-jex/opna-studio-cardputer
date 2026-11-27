@@ -41,6 +41,12 @@ y 224..239   六个页签：SEQ SYN MIX VIS SYS FILE
 - `Enter` 切换；
 - 底部显示 CPU / UND / FPS。
 
+### PMD 日文标题
+
+- CP932 标题在页面标题栏显示，使用原始 12×12 日文字模与 6×8 ASCII，标题栏右对齐；
+- 只在 PMD 标题栏使用，正文仍是 6×8；
+- 未知字回退 `?`。
+
 ### 配色
 
 - 启动读取 `/sdcard/OPNA/COLORS.CFG`；
@@ -58,7 +64,9 @@ y 224..239   六个页签：SEQ SYN MIX VIS SYS FILE
 - PMD 播放时 SEQ 监视器只画音高变化事件，持续音不会重复铺满；
 - PMD 播放时 VIS 页显示输出波形而不是 studio FFT；
 - VIS 页显示 RAM free / total / largest block；
-- PMD 播放时 MIX 页显示 FM1–6/SSG1–3/RHY 的活动与音量，以及 L/R 输出 VU。
+- PMD 播放时 MIX 页显示 19 行（10 行可见，↑↓ 滚动）：FM1–6、FM3B/C/D、SSG1/2、SSG3-T、SSG3-N、BD/SD/TOP/HH/TOM/RIM；
+- SSG3-T/N 共用同一个物理 SSG3，mute 同步；6 个鼓声部独立 mute；
+- PMD MIX 中 `↑↓` 选通道，`Enter` 开关该通道；
 
 ### SYS
 

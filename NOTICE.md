@@ -126,3 +126,11 @@ Unless stated above, the following are original to OPNA Studio P2:
 
 The 24-second demo song, the UI layout, and all screen captures were created for
 this project.
+
+
+## Fonts
+
+- **Fusion Pixel Font** © 2022 TakWolf, SIL Open Font License 1.1.
+  The 12×12 CP932 bitmap table in `main/jp_font_data.h` is generated from
+  `fusion-pixel-12px-monospaced-ja.ttf` and is used only for PMD Japanese
+  titles. See `docs/FUSION-PIXEL-OFL.txt`.

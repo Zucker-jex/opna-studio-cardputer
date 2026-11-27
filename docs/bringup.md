@@ -127,7 +127,7 @@ AMP_EN 始终由 MCU 保持高，插入耳机时由 Q4 拉低。
 5a. SEQ 监视器不应把持续音重复铺满 16 列；
 5b. VIS 页应显示 PMD 输出波形；
 5c. VIS 页应显示 RAM free/total/blk；
-5d. MIX 页应显示 PMD 10 轨活动/音量与 L/R VU；
+5d. MIX 页应显示 PMD 19 行（10 行可见，↑↓ 滚动）与 L/R VU；SSG3-T/N 分别反映 tone/noise，BD/SD/TOP/HH/TOM/RIM 独立开关；
 5e. `/sdcard/OPNA/COLORS.CFG` 应自动生成，修改后重启生效；
 6. PPZ8/ADPCM 声部保持静音，这是与 pocket-fmdsp 一致的行为。
 

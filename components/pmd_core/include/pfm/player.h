@@ -55,8 +55,12 @@ struct pmd_track_view {
   uint8_t key;
   uint8_t volume;
   uint8_t gate;
+  uint8_t tone;
+  uint8_t noise;
 };
 void pfm_player_track_snapshot(pfm_player *p, struct pmd_track_view out[10]);
+void pfm_player_track_snapshot_all(pfm_player *p, struct pmd_track_view out[22]);
+void pfm_player_drum_snapshot(pfm_player *p, uint8_t active[6], uint8_t level[6]);
 
 #ifdef __cplusplus
 }
